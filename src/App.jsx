@@ -55,18 +55,13 @@ const SpeakerOffIcon = () => (
   </svg>
 )
 
-// ── IMPORTANT: Replace this with your actual Render backend URL ──────
-// Go to render.com → your service → copy the URL shown at the top
-// Example: https://akili-backend.onrender.com
-const BACKEND_URL = 'http://127.0.0.1:8000'
-
 const MODES = [
   {
     id: 'teacher',
     emoji: '🎓',
     name: 'Teacher Mode',
     desc: 'Explain anything simply',
-    systemPrompt: `You are Akili in Teacher Mode. You explain concepts in simple, clear language anyone can understand — like a patient friendly teacher. Break complex ideas into small steps. When solving math or calculations, show your working step by step clearly. Use real-life examples. If someone uses slang or informal language, respond naturally in a similar tone while still being helpful. Always be encouraging. Silently correct spelling or grammar mistakes in what the user writes — respond as if they wrote it correctly without pointing out the mistake. Never teach anything illegal or immoral.`,
+    systemPrompt: `You are Akili in Teacher Mode. You explain concepts in simple, clear language anyone can understand — like a patient friendly teacher. Break complex ideas into small steps. When solving math or calculations, show your working step by step clearly. Use real-life examples. If someone uses slang or informal language, respond naturally in a similar tone while still being helpful. Always be encouraging. Never teach anything illegal or immoral.`,
     placeholder: 'Ask me to explain anything... "explain photosynthesis like I am 10"',
     welcome: 'Ready to explain anything! Ask me in any language or slang — I understand you.'
   },
@@ -75,7 +70,7 @@ const MODES = [
     emoji: '🔍',
     name: 'Analyst Mode',
     desc: 'Break down documents & data',
-    systemPrompt: `You are Akili in Analyst Mode. You analyze documents, reports, contracts, data, and research papers deeply. You identify key findings, red flags, important clauses, trends, and insights. Present findings clearly. Silently correct spelling or grammar mistakes in what the user writes — respond as if they wrote it correctly without pointing out the mistake. Never assist with anything illegal.`,
+    systemPrompt: `You are Akili in Analyst Mode. You analyze documents, reports, contracts, data, and research papers deeply. You identify key findings, red flags, important clauses, trends, and insights. Present findings clearly. Never assist with anything illegal.`,
     placeholder: 'Paste a document, contract, or report to analyze...',
     welcome: 'Paste any document, contract, report, or research — I will break it down for you.'
   },
@@ -84,7 +79,7 @@ const MODES = [
     emoji: '🧠',
     name: 'Logic Mode',
     desc: 'Sharpen your reasoning',
-    systemPrompt: `You are Akili in Logic Mode. You help users think clearly and critically. You identify logical fallacies, weak arguments, and flawed reasoning. You can debate ideas and help users strengthen their arguments. Silently correct spelling or grammar mistakes in what the user writes — respond as if they wrote it correctly without pointing out the mistake. Never help with misleading reasoning for harmful purposes.`,
+    systemPrompt: `You are Akili in Logic Mode. You help users think clearly and critically. You identify logical fallacies, weak arguments, and flawed reasoning. You can debate ideas and help users strengthen their arguments. Never help with misleading reasoning for harmful purposes.`,
     placeholder: 'Give me an argument to analyze, or a reasoning puzzle...',
     welcome: 'Give me an argument to dissect or challenge me with a logic puzzle!'
   },
@@ -93,7 +88,7 @@ const MODES = [
     emoji: '🧭',
     name: 'Mentor Mode',
     desc: 'Learning roadmaps & growth',
-    systemPrompt: `You are Akili in Mentor Mode. You are a career coach, life mentor, and skill development guide. You create personalized learning roadmaps, give study tips, recommend resources, and help users set realistic goals. Be empathetic, motivating, and practical. Silently correct spelling or grammar mistakes in what the user writes — respond as if they wrote it correctly without pointing out the mistake. Never give advice that encourages harmful or illegal behavior.`,
+    systemPrompt: `You are Akili in Mentor Mode. You are a career coach, life mentor, and skill development guide. You create personalized learning roadmaps, give study tips, recommend resources, and help users set realistic goals. Be empathetic, motivating, and practical. Never give advice that encourages harmful or illegal behavior.`,
     placeholder: 'Tell me your goals or what skill you want to develop...',
     welcome: 'Tell me your goals — I will help you create a roadmap to get there.'
   },
@@ -102,7 +97,7 @@ const MODES = [
     emoji: '📡',
     name: 'Research Mode',
     desc: 'Deep research & synthesis',
-    systemPrompt: `You are Akili in Research Mode. You synthesize information, compare sources, identify patterns, summarize research, and help users understand complex topics. You are thorough and note when something needs verification. Silently correct spelling or grammar mistakes in what the user writes — respond as if they wrote it correctly without pointing out the mistake. Never fabricate facts.`,
+    systemPrompt: `You are Akili in Research Mode. You synthesize information, compare sources, identify patterns, summarize research, and help users understand complex topics. You are thorough and note when something needs verification. Never fabricate facts.`,
     placeholder: 'What topic do you want to research deeply?',
     welcome: 'What would you like to research? Give me a topic and I will go deep on it.'
   }
@@ -125,6 +120,9 @@ const fileIcon = (name) => {
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
+// ── IMPORTANT: this must match your exact Render backend URL ─────────
+const BACKEND_URL = 'https://akili-backend.onrender.com'
+
 export default function App() {
   const [activeMode, setActiveMode] = useState(MODES[0])
   const [messages, setMessages] = useState({})
@@ -137,7 +135,7 @@ export default function App() {
   const [showSignIn, setShowSignIn] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [speakingId, setSpeakingId] = useState(null)
-  const [voiceSupported] = useState(!!SpeechRecognition)
+  const [voiceSupported, setVoiceSupported] = useState(!!SpeechRecognition)
 
   const chatEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -161,6 +159,7 @@ export default function App() {
     recognition.continuous = false
     recognition.interimResults = true
     recognition.lang = 'en-US'
+
     recognition.onresult = (event) => {
       let transcript = ''
       for (let i = 0; i < event.results.length; i++) {
@@ -170,6 +169,7 @@ export default function App() {
     }
     recognition.onend = () => setIsListening(false)
     recognition.onerror = () => setIsListening(false)
+
     recognitionRef.current = recognition
   }, [])
 
@@ -185,14 +185,15 @@ export default function App() {
     }
   }
 
-  // ── Speaker button on each message — press to listen, press again to stop
   const speakMessage = (msg) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return
+
     if (speakingId === msg.id) {
       window.speechSynthesis.cancel()
       setSpeakingId(null)
       return
     }
+
     window.speechSynthesis.cancel()
     const cleanText = msg.content.replace(/[*#_`]/g, '')
     const utterance = new SpeechSynthesisUtterance(cleanText)
@@ -230,8 +231,9 @@ export default function App() {
 
     const userMsg = { id: Date.now(), role: 'user', content: userContent, time: new Date() }
     const prevMsgs = messages[activeMode.id] || []
+    const updatedMsgs = [...prevMsgs, userMsg]
 
-    setMessages(prev => ({ ...prev, [activeMode.id]: [...prevMsgs, userMsg] }))
+    setMessages(prev => ({ ...prev, [activeMode.id]: updatedMsgs }))
     setInput('')
     setAttachedFiles([])
     setLoading(true)
@@ -245,17 +247,13 @@ export default function App() {
           messages: buildHistory(prevMsgs, userContent)
         })
       })
+
       const data = await response.json()
       const aiText = data.reply || data.error || 'Something went wrong. Please try again.'
       const aiMsg = { id: Date.now() + 1, role: 'assistant', content: aiText, time: new Date() }
       setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), aiMsg] }))
     } catch (err) {
-      const errMsg = {
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '⚠️ Could not connect to Akili backend. Make sure your server is running.',
-        time: new Date()
-      }
+      const errMsg = { id: Date.now() + 1, role: 'assistant', content: '⚠️ Could not connect to the Akili backend. Please try again in a moment.', time: new Date() }
       setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), errMsg] }))
     } finally {
       setLoading(false)
@@ -277,13 +275,11 @@ export default function App() {
   }
 
   const removeFile = (idx) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
-
   const clearChat = () => {
     setMessages(prev => ({ ...prev, [activeMode.id]: [] }))
     if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
     setSpeakingId(null)
   }
-
   const handleQuickAction = (prompt) => { setInput(prompt); textareaRef.current?.focus() }
 
   const displayName = user ? user.name : 'Guest'
@@ -336,7 +332,7 @@ export default function App() {
               <div className="user-avatar">{user.initial}</div>
               <div className="user-info">
                 <div className="user-name">{user.name}</div>
-                <div className="user-role">Signed in</div>
+                <div className="user-role">Signed in with Google</div>
               </div>
               <div className="online-dot" />
             </div>
@@ -450,9 +446,6 @@ export default function App() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                spellCheck={true}
-                autoCorrect="on"
-                autoCapitalize="sentences"
               />
               <div className="input-actions">
                 {voiceSupported && (
@@ -481,7 +474,7 @@ export default function App() {
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <div className="modal-icon"><GoogleIcon /></div>
             <h2 className="modal-title">Sign in to Akili</h2>
-            <p className="modal-sub">Enter your name to continue. (Full Google sign-in coming soon.)</p>
+            <p className="modal-sub">Enter your name to continue. (Full Google sign-in will be connected soon.)</p>
             <input
               className="modal-input"
               placeholder="Your name"
