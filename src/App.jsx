@@ -54,6 +54,19 @@ const SpeakerOffIcon = () => (
     <line x1="17" y1="9" x2="23" y2="15"/>
   </svg>
 )
+const MenuIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+)
+const CloseIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+)
 
 const MODES = [
   {
@@ -120,7 +133,6 @@ const fileIcon = (name) => {
 
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
-// ── IMPORTANT: this must match your exact Render backend URL ─────────
 const BACKEND_URL = 'https://akili-backend.onrender.com'
 
 export default function App() {
@@ -136,6 +148,7 @@ export default function App() {
   const [isListening, setIsListening] = useState(false)
   const [speakingId, setSpeakingId] = useState(null)
   const [voiceSupported, setVoiceSupported] = useState(!!SpeechRecognition)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const chatEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -281,12 +294,15 @@ export default function App() {
     setSpeakingId(null)
   }
   const handleQuickAction = (prompt) => { setInput(prompt); textareaRef.current?.focus() }
+  const handleModeSelect = (mode) => { setActiveMode(mode); setSidebarOpen(false) }
 
   const displayName = user ? user.name : 'Guest'
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-logo">
           <div className="logo-mark">
             <div className="logo-icon">A</div>
@@ -295,12 +311,15 @@ export default function App() {
               <div className="logo-sub">AI Knowledge Companion</div>
             </div>
           </div>
+          <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>
+            <CloseIcon />
+          </button>
         </div>
 
         <nav className="mode-section">
           <div className="section-label">Modes</div>
           {MODES.map(mode => (
-            <button key={mode.id} className={`mode-btn ${activeMode.id === mode.id ? 'active' : ''}`} onClick={() => setActiveMode(mode)}>
+            <button key={mode.id} className={`mode-btn ${activeMode.id === mode.id ? 'active' : ''}`} onClick={() => handleModeSelect(mode)}>
               <div className="mode-icon">{mode.emoji}</div>
               <div className="mode-info">
                 <span className="mode-name">{mode.name}</span>
@@ -347,15 +366,20 @@ export default function App() {
 
       <main className="main-area">
         <div className="topbar">
-          <div>
-            <div className="topbar-title">{activeMode.emoji} {activeMode.name}</div>
-            <div className="topbar-subtitle">{activeMode.welcome}</div>
+          <div className="topbar-left">
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(true)}>
+              <MenuIcon />
+            </button>
+            <div>
+              <div className="topbar-title">{activeMode.emoji} {activeMode.name}</div>
+              <div className="topbar-subtitle">{activeMode.welcome}</div>
+            </div>
           </div>
           <div className="topbar-actions">
             {currentMessages.length > 0 && (
-              <button className="btn-ghost" onClick={clearChat}><TrashIcon /> Clear chat</button>
+              <button className="btn-ghost" onClick={clearChat}><TrashIcon /> <span className="btn-text">Clear chat</span></button>
             )}
-            <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><PlusIcon /> Upload</button>
+            <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><PlusIcon /> <span className="btn-text">Upload</span></button>
           </div>
         </div>
 
@@ -383,7 +407,7 @@ export default function App() {
                   <div className={`msg-avatar ${msg.role === 'user' ? 'user' : 'akili'}`}>
                     {msg.role === 'user' ? (user ? user.initial : 'G') : 'A'}
                   </div>
-                  <div style={{ maxWidth: '68%' }}>
+                  <div style={{ maxWidth: '78%' }}>
                     <div className={`msg-bubble ${msg.role === 'user' ? 'user' : 'akili'}`}>
                       {msg.content.split('\n').map((line, i, arr) => (
                         <React.Fragment key={i}>{line}{i < arr.length - 1 && <br />}</React.Fragment>
@@ -463,7 +487,7 @@ export default function App() {
             </div>
             <div className="input-footer">
               <span className="input-hint">Enter to send · Shift+Enter for new line</span>
-              <span className="lang-badge"><GlobeIcon /> Understands all languages & slang</span>
+              <span className="lang-badge"><GlobeIcon /> <span className="btn-text">Understands all languages & slang</span></span>
             </div>
           </div>
         </div>
