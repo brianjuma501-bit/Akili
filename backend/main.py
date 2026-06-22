@@ -22,14 +22,14 @@ app.add_middleware(
 
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
-MPESA_NUMBER = os.getenv("MPESA_NUMBER")
+PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL", "brianjuma501@gmail.com")
+MPESA_NUMBER = os.getenv("MPESA_NUMBER", "0795400348")
 OWNER_ID = os.getenv("OWNER_ID", "brianjuma501")
-DARAJA_CONSUMER_KEY = os.getenv("DARAJA_CONSUMER_KEY")
-DARAJA_CONSUMER_SECRET = os.getenv("DARAJA_CONSUMER_SECRET")
+DARAJA_CONSUMER_KEY = os.getenv("DARAJA_CONSUMER_KEY", "")
+DARAJA_CONSUMER_SECRET = os.getenv("DARAJA_CONSUMER_SECRET", "")
 DARAJA_SHORTCODE = os.getenv("DARAJA_SHORTCODE", "174379")
-DARAJA_PASSKEY = os.getenv("DARAJA_PASSKEY")
-DARAJA_CALLBACK_URL = os.getenv("DARAJA_CALLBACK_URL")
+DARAJA_PASSKEY = os.getenv("DARAJA_PASSKEY", "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
+DARAJA_CALLBACK_URL = os.getenv("DARAJA_CALLBACK_URL", "https://akili-backend.onrender.com/mpesa-callback")
 
 FREE_TRIAL_LIMIT = 2
 DAILY_LIMIT = 20
@@ -57,15 +57,19 @@ def get_user(user_id: str):
 
 def get_mpesa_token():
     try:
+        if not DARAJA_CONSUMER_KEY or not DARAJA_CONSUMER_SECRET:
+            return None
         credentials = base64.b64encode(
             f"{DARAJA_CONSUMER_KEY}:{DARAJA_CONSUMER_SECRET}".encode()
         ).decode()
         response = requests.get(
             "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-            headers={"Authorization": f"Basic {credentials}"}
+            headers={"Authorization": f"Basic {credentials}"},
+            timeout=10
         )
-        return response.json().get("access_token")
-    except Exception as e:
+        token = response.json().get("access_token")
+        return token
+    except Exception:
         return None
 
 
@@ -100,16 +104,10 @@ class DeleteChatRequest(BaseModel):
     chat_id: str
 
 
-class PaymentRequest(BaseModel):
-    user_id: str
-    payment_method: str
-    amount: float
-
-
 class STKRequest(BaseModel):
     user_id: str
     phone_number: str
-    amount: int = 650
+    amount: int = 130
 
 
 class ManualConfirmRequest(BaseModel):
@@ -125,10 +123,11 @@ def health_check():
 def payment_info():
     return {
         "paypal_email": PAYPAL_EMAIL,
-        "paypal_link": f"https://paypal.me/brianjuma501/5",
+        "paypal_link": "https://paypal.me/brianjuma501/7.25",
         "mpesa_number": MPESA_NUMBER,
-        "subscription_price_usd": 5,
-        "subscription_price_kes": 650,
+        "mpesa_price_kes": 130,
+        "mpesa_price_usd": 1,
+        "international_price_usd": 7.25,
         "trial_messages": FREE_TRIAL_LIMIT,
         "daily_limit": DAILY_LIMIT
     }
@@ -163,13 +162,16 @@ def user_status(user_id: str):
 
 @app.post("/stk-push")
 def stk_push(req: STKRequest):
-    try:
-        token = get_mpesa_token()
-        if not token:
-            return {"success": False, "message": "Could not connect to M-Pesa. Please try manual payment."}
+    token = get_mpesa_token()
+    if not token:
+        return {
+            "success": False,
+            "message": "M-Pesa auto-prompt is being set up. Please use manual payment for now — send KSh 130 to 0795400348 via Send Money, then tap 'I Have Paid' below."
+        }
 
+    try:
         password, timestamp = generate_mpesa_password()
-        phone = req.phone_number.strip()
+        phone = req.phone_number.strip().replace(" ", "")
         if phone.startswith("0"):
             phone = "254" + phone[1:]
         elif phone.startswith("+"):
@@ -185,7 +187,7 @@ def stk_push(req: STKRequest):
             "PartyB": DARAJA_SHORTCODE,
             "PhoneNumber": phone,
             "CallBackURL": DARAJA_CALLBACK_URL,
-            "AccountReference": f"AKILI-{req.user_id[:8]}",
+            "AccountReference": f"AKILI{req.user_id[:6].upper()}",
             "TransactionDesc": "Akili AI Subscription"
         }
 
@@ -195,23 +197,27 @@ def stk_push(req: STKRequest):
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
-            }
+            },
+            timeout=15
         )
         result = response.json()
 
         if result.get("ResponseCode") == "0":
             return {
                 "success": True,
-                "message": "M-Pesa prompt sent to your phone. Enter your PIN to complete payment.",
+                "message": "✅ M-Pesa prompt sent! Check your phone and enter your PIN to pay KSh 130.",
                 "checkout_request_id": result.get("CheckoutRequestID")
             }
         else:
             return {
                 "success": False,
-                "message": result.get("ResponseDescription", "STK push failed. Please try manual payment.")
+                "message": f"Could not send prompt: {result.get('ResponseDescription', 'Unknown error')}. Please use manual payment — send KSh 130 to {MPESA_NUMBER} via Send Money."
             }
     except Exception as e:
-        return {"success": False, "message": f"Error: {str(e)}"}
+        return {
+            "success": False,
+            "message": f"M-Pesa error. Please send KSh 130 manually to {MPESA_NUMBER} via Send Money, then tap 'I Have Paid'."
+        }
 
 
 @app.post("/mpesa-callback")
@@ -223,14 +229,14 @@ async def mpesa_callback(request: Request):
         if result_code == 0:
             metadata = result.get("CallbackMetadata", {}).get("Item", [])
             account_ref = next((i["Value"] for i in metadata if i["Name"] == "AccountReference"), None)
-            if account_ref and account_ref.startswith("AKILI-"):
-                user_prefix = account_ref.replace("AKILI-", "")
+            if account_ref and account_ref.startswith("AKILI"):
+                user_prefix = account_ref.replace("AKILI", "").lower()
                 for uid in user_data:
                     if uid.startswith(user_prefix):
                         user_data[uid]["paid"] = True
                         user_data[uid]["daily_count"] = 0
                         break
-    except Exception as e:
+    except Exception:
         pass
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
@@ -245,20 +251,19 @@ def manual_confirm(req: ManualConfirmRequest):
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    if request.user_id == OWNER_ID:
-        pass
-    else:
+    if request.user_id != OWNER_ID:
         uid = request.user_id
         if uid not in request_counts:
             request_counts[uid] = {"count": 0, "window": datetime.now().timestamp()}
         rc = request_counts[uid]
-        if datetime.now().timestamp() - rc["window"] < 60:
+        now = datetime.now().timestamp()
+        if now - rc["window"] < 60:
             if rc["count"] > 30:
                 return {"error": "RATE_LIMIT", "message": "Too many requests. Please wait a moment."}
             rc["count"] += 1
         else:
             rc["count"] = 1
-            rc["window"] = datetime.now().timestamp()
+            rc["window"] = now
 
         u = get_user(request.user_id)
         if u["trial_used"] < FREE_TRIAL_LIMIT:
@@ -267,9 +272,15 @@ def chat(request: ChatRequest):
             u["daily_count"] += 1
         else:
             if not u["paid"]:
-                return {"error": "TRIAL_ENDED", "message": "Your 2 free messages are used up. Subscribe to continue."}
+                return {
+                    "error": "TRIAL_ENDED",
+                    "message": "Your 2 free messages are used. Subscribe to continue — only KSh 130 ($1) per month."
+                }
             else:
-                return {"error": "DAILY_LIMIT", "message": "Daily limit reached. Resets at midnight."}
+                return {
+                    "error": "DAILY_LIMIT",
+                    "message": "You've reached today's 20 message limit. It resets at midnight."
+                }
 
     try:
         response = client.messages.create(

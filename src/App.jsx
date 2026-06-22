@@ -17,35 +17,57 @@ const EditIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 
 const BACKEND_URL = 'https://akili-backend.onrender.com'
 
+// ── Swahili + simplicity + honesty built into every mode invisibly ──
+const SHARED_CONTEXT = `
+You understand and speak all languages fluently including Swahili, Sheng, and English. If the user writes in Swahili or Sheng, respond naturally in that language. If they mix languages, mix your response the same way.
+
+Always explain things simply enough that someone with no background knowledge can understand. Start with the simple explanation first, then add detail only if needed.
+
+Be direct and honest. If someone is wrong, say so kindly but clearly. Never lie to make someone feel better. Never refuse to answer something that is legal and reasonable to ask.
+
+You help with: exam questions, essay writing, letter writing, math, relationships and love advice, life decisions, personal problems, business questions, and any other topic a person genuinely needs help with. Be like a knowledgeable, honest friend.
+
+Always add a brief reminder that Akili can make mistakes on important matters.`
+
 const MODES = [
   {
-    id: 'teacher', emoji: '🎓', name: 'Teacher Mode', desc: 'Explain anything simply',
-    systemPrompt: `You are Akili in Teacher Mode. Be direct — give the answer first, explain after only if needed. Never over-explain or repeat yourself. Answer exam questions directly and completely. Help write any letter, email, or document requested. Solve math step by step but concisely. Use casual language if the user does. Be honest even when truth is uncomfortable. You are knowledgeable — share it confidently. Always add a brief note that Akili can make mistakes on important matters.`,
-    placeholder: 'Ask anything — exams, letters, math, concepts...',
-    welcome: 'Ask me anything. I give straight, honest answers.'
+    id: 'teacher', emoji: '🎓', name: 'Teacher Mode', desc: 'Explains anything clearly',
+    systemPrompt: `You are Akili in Teacher Mode.${SHARED_CONTEXT}
+
+Your job: explain, teach, and answer questions directly. Give the answer first, then the explanation. Solve math step by step. Answer exam questions fully and correctly. Write any letter, email, or document a person asks for. Never over-explain or repeat yourself.`,
+    placeholder: 'Ask me anything — exams, letters, math, any topic...',
+    welcome: 'Ask me anything. I give straight, clear answers.'
   },
   {
-    id: 'analyst', emoji: '🔍', name: 'Analyst Mode', desc: 'Break down documents & data',
-    systemPrompt: `You are Akili in Analyst Mode. Get straight to key points — most important findings first. Be objective and honest. Flag red flags clearly. Never soften uncomfortable truths. Never assist with anything illegal.`,
-    placeholder: 'Paste a document, contract, or data to analyze...',
+    id: 'analyst', emoji: '🔍', name: 'Analyst Mode', desc: 'Breaks down any document',
+    systemPrompt: `You are Akili in Analyst Mode.${SHARED_CONTEXT}
+
+Analyze documents, contracts, reports, and data. Lead with the most important findings. Flag red flags clearly. Be objective and honest even when findings are uncomfortable.`,
+    placeholder: 'Paste a document, contract, or report to analyze...',
     welcome: 'Paste anything. I break it down fast and honestly.'
   },
   {
-    id: 'logic', emoji: '🧠', name: 'Logic Mode', desc: 'Sharpen your reasoning',
-    systemPrompt: `You are Akili in Logic Mode. Point out logical flaws directly. If an argument is weak, say so and explain why. If someone is right, confirm it clearly. Be a sharp, honest thinking partner.`,
-    placeholder: 'Give me an argument or reasoning problem...',
+    id: 'logic', emoji: '🧠', name: 'Logic Mode', desc: 'Sharpens your thinking',
+    systemPrompt: `You are Akili in Logic Mode.${SHARED_CONTEXT}
+
+Help users think clearly. Point out logical flaws directly. If an argument is weak, explain why clearly. If someone is right, confirm it. Be a sharp, honest thinking partner.`,
+    placeholder: 'Give me an argument, debate topic, or problem to think through...',
     welcome: 'Give me your argument. I will tell you honestly if it holds.'
   },
   {
-    id: 'mentor', emoji: '🧭', name: 'Mentor Mode', desc: 'Life, relationships & growth',
-    systemPrompt: `You are Akili in Mentor Mode. Give direct, honest life and relationship advice. Tell people what they need to hear, not what they want to hear. If someone is wrong in a situation, say so kindly but clearly. Give real, practical life hacks and strategies. Be like a wise, honest friend who genuinely wants them to succeed. Never encourage harmful or illegal behavior.`,
-    placeholder: 'Ask about relationships, life, goals, decisions...',
-    welcome: 'Ask me about life or relationships. I will be completely honest.'
+    id: 'mentor', emoji: '🧭', name: 'Mentor Mode', desc: 'Guides your growth & decisions',
+    systemPrompt: `You are Akili in Mentor Mode.${SHARED_CONTEXT}
+
+Give honest, direct advice on life, personal decisions, love, friendships, career, money, and success. Tell people what they need to hear, not what they want to hear. If someone is wrong in a situation, say so kindly but clearly. Give practical strategies. Be like a wise, honest friend who genuinely wants them to succeed. Never encourage harmful or illegal behavior.`,
+    placeholder: 'Ask about life decisions, personal problems, goals, success...',
+    welcome: 'Ask me anything about your life or decisions. I will be honest with you.'
   },
   {
-    id: 'research', emoji: '📡', name: 'Research Mode', desc: 'Deep research & synthesis',
-    systemPrompt: `You are Akili in Research Mode. Lead with the most important findings. Be thorough but not verbose. Note when something needs verification. Never fabricate facts.`,
-    placeholder: 'What topic do you want to research?',
+    id: 'research', emoji: '📡', name: 'Research Mode', desc: 'Deep knowledge on any topic',
+    systemPrompt: `You are Akili in Research Mode.${SHARED_CONTEXT}
+
+Provide deep, thorough information on any topic. Lead with what matters most. Be accurate and note when something needs verification. Never fabricate facts.`,
+    placeholder: 'What topic do you want to explore deeply?',
     welcome: 'Give me a topic. I will find and explain what matters most.'
   }
 ]
@@ -105,18 +127,11 @@ export default function App() {
   const currentMessages = messages[activeMode.id] || []
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
-
   useEffect(() => {
     const ta = textareaRef.current
     if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px' }
   }, [input])
-
-  useEffect(() => {
-    fetchUserStatus()
-    fetchPaymentInfo()
-    fetchSavedChats()
-  }, [userId])
-
+  useEffect(() => { fetchUserStatus(); fetchPaymentInfo(); fetchSavedChats() }, [userId])
   useEffect(() => {
     if (!SpeechRecognition) return
     const recognition = new SpeechRecognition()
@@ -134,25 +149,13 @@ export default function App() {
   }, [])
 
   const fetchUserStatus = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/user-status/${userId}`)
-      setUserStatus(await res.json())
-    } catch (e) {}
+    try { const res = await fetch(`${BACKEND_URL}/user-status/${userId}`); setUserStatus(await res.json()) } catch {}
   }
-
   const fetchPaymentInfo = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/payment-info`)
-      setPaymentInfo(await res.json())
-    } catch (e) {}
+    try { const res = await fetch(`${BACKEND_URL}/payment-info`); setPaymentInfo(await res.json()) } catch {}
   }
-
   const fetchSavedChats = async () => {
-    try {
-      const res = await fetch(`${BACKEND_URL}/get-chats/${userId}`)
-      const data = await res.json()
-      setSavedChats(data.chats || {})
-    } catch (e) {}
+    try { const res = await fetch(`${BACKEND_URL}/get-chats/${userId}`); const data = await res.json(); setSavedChats(data.chats || {}) } catch {}
   }
 
   const saveCurrentChat = async () => {
@@ -161,84 +164,67 @@ export default function App() {
     const title = activeMode.name + ' — ' + new Date().toLocaleDateString()
     try {
       await fetch(`${BACKEND_URL}/save-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, chat_id: chatId, title, messages: currentMessages.map(m => ({ role: m.role, content: m.content })) })
       })
       fetchSavedChats()
       alert('Chat saved!')
-    } catch (e) {}
+    } catch {}
   }
 
   const deleteChat = async (chatId) => {
     try {
       await fetch(`${BACKEND_URL}/delete-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, chat_id: chatId })
       })
       fetchSavedChats()
-    } catch (e) {}
+    } catch {}
   }
 
   const loadChat = (chat) => {
-    const loaded = chat.messages.map((m, i) => ({ ...m, id: Date.now() + i, time: new Date() }))
-    setMessages(prev => ({ ...prev, [activeMode.id]: loaded }))
+    setMessages(prev => ({ ...prev, [activeMode.id]: chat.messages.map((m, i) => ({ ...m, id: Date.now() + i, time: new Date() })) }))
     setShowHistory(false)
   }
 
   const handleSTKPush = async () => {
-    if (!phoneInput.trim()) { setStkMessage('Please enter your phone number.'); return }
-    setStkLoading(true)
-    setStkMessage('')
+    if (!phoneInput.trim()) { setStkMessage('Please enter your M-Pesa number.'); return }
+    setStkLoading(true); setStkMessage('')
     try {
       const res = await fetch(`${BACKEND_URL}/stk-push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, phone_number: phoneInput, amount: 650 })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, phone_number: phoneInput, amount: 130 })
       })
       const data = await res.json()
       setStkMessage(data.message)
-    } catch (e) {
-      setStkMessage('Could not send M-Pesa prompt. Please try manual payment.')
-    } finally {
-      setStkLoading(false)
-    }
+    } catch { setStkMessage('Could not send prompt. Please use manual payment below.') }
+    finally { setStkLoading(false) }
   }
 
   const handleManualConfirm = async () => {
     try {
       await fetch(`${BACKEND_URL}/manual-confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId })
       })
       await fetchUserStatus()
       setShowPayment(false)
-      alert('✅ Access unlocked! You now have 20 messages per day. Thank you!')
-    } catch (e) { alert('Could not confirm. Please try again.') }
+      alert('✅ Access unlocked! You now have 20 messages per day. Asante / Thank you!')
+    } catch { alert('Could not confirm. Please try again.') }
   }
 
   const handleSignIn = () => {
     const name = authName.trim()
-    const email = authEmail.trim()
     if (!name) return
-    const newUser = { name, email, initial: name.charAt(0).toUpperCase() }
+    const newUser = { name, email: authEmail.trim(), initial: name.charAt(0).toUpperCase() }
     setUser(newUser)
     try { localStorage.setItem('akili_user', JSON.stringify(newUser)) } catch {}
-    setShowAuth(false)
-    setAuthName('')
-    setAuthEmail('')
+    setShowAuth(false); setAuthName(''); setAuthEmail('')
   }
 
   const handleSignOut = () => {
     setUser(null)
     try { localStorage.removeItem('akili_user') } catch {}
-  }
-
-  const startNewChat = () => {
-    clearChat()
-    setSidebarOpen(false)
   }
 
   const toggleListening = () => {
@@ -258,62 +244,37 @@ export default function App() {
     setSpeakingId(msg.id)
   }
 
-  const buildHistory = (msgs, text) => {
-    const history = msgs.map(m => ({ role: m.role, content: m.content }))
-    history.push({ role: 'user', content: text })
-    return history
-  }
+  const buildHistory = (msgs, text) => [...msgs.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
 
   const handleSend = async () => {
     const text = input.trim()
     if (!text && attachedFiles.length === 0) return
+    if (userStatus && !userStatus.can_chat && !userStatus.is_owner) { setShowPayment(true); return }
 
-    if (userStatus && !userStatus.can_chat && !userStatus.is_owner) {
-      setShowPayment(true)
-      return
-    }
-
-    const userContent = attachedFiles.length > 0
-      ? `${text}\n\n[Attached: ${attachedFiles.map(f => f.name).join(', ')}]`
-      : text
-
+    const userContent = attachedFiles.length > 0 ? `${text}\n\n[Attached: ${attachedFiles.map(f => f.name).join(', ')}]` : text
     const userMsg = { id: Date.now(), role: 'user', content: userContent, time: new Date() }
     const prevMsgs = messages[activeMode.id] || []
 
     setMessages(prev => ({ ...prev, [activeMode.id]: [...prevMsgs, userMsg] }))
-    setInput('')
-    setAttachedFiles([])
-    setLoading(true)
+    setInput(''); setAttachedFiles([]); setLoading(true)
 
     try {
       const response = await fetch(`${BACKEND_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system: activeMode.systemPrompt,
-          messages: buildHistory(prevMsgs, userContent),
-          user_id: userId
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system: activeMode.systemPrompt, messages: buildHistory(prevMsgs, userContent), user_id: userId })
       })
-
       const data = await response.json()
-
       if (data.error === 'TRIAL_ENDED' || data.error === 'DAILY_LIMIT') {
-        const errMsg = { id: Date.now() + 1, role: 'assistant', content: data.message, time: new Date() }
-        setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), errMsg] }))
+        setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: data.message, time: new Date() }] }))
         setShowPayment(true)
       } else {
         const aiText = data.reply || data.error || 'Something went wrong. Please try again.'
-        const aiMsg = { id: Date.now() + 1, role: 'assistant', content: aiText, time: new Date() }
-        setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), aiMsg] }))
+        setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: aiText, time: new Date() }] }))
         fetchUserStatus()
       }
-    } catch (err) {
-      const errMsg = { id: Date.now() + 1, role: 'assistant', content: '⚠️ Could not connect. Please try again.', time: new Date() }
-      setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), errMsg] }))
-    } finally {
-      setLoading(false)
-    }
+    } catch {
+      setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: '⚠️ Could not connect. Please try again.', time: new Date() }] }))
+    } finally { setLoading(false) }
   }
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
@@ -322,19 +283,20 @@ export default function App() {
   const removeFile = (idx) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
   const clearChat = () => { setMessages(prev => ({ ...prev, [activeMode.id]: [] })); if (window.speechSynthesis) window.speechSynthesis.cancel(); setSpeakingId(null) }
   const handleModeSelect = (mode) => { setActiveMode(mode); setSidebarOpen(false) }
-
+  const startNewChat = () => { clearChat(); setSidebarOpen(false) }
   const displayName = user ? user.name : 'Guest'
 
   const StatusBar = () => {
     if (!userStatus || userStatus.is_owner) return null
-    if (!userStatus.paid && userStatus.trial_used < 2) {
-      return <div className="status-bar trial">🎯 {2 - userStatus.trial_used} free message{2 - userStatus.trial_used !== 1 ? 's' : ''} remaining — <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setShowPayment(true)}>Upgrade</span></div>
+    if (!userStatus.paid && userStatus.trial_used < FREE_TRIAL_LIMIT) {
+      const remaining = 2 - userStatus.trial_used
+      return <div className="status-bar trial">🎯 {remaining} free message{remaining !== 1 ? 's' : ''} remaining — <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setShowPayment(true)}>Subscribe</span></div>
     }
-    if (userStatus.paid) {
-      return <div className="status-bar paid">✨ {userStatus.daily_remaining} messages left today</div>
-    }
+    if (userStatus.paid) return <div className="status-bar paid">✨ {userStatus.daily_remaining} messages left today</div>
     return null
   }
+
+  const FREE_TRIAL_LIMIT = 2
 
   return (
     <div className="app-shell">
@@ -344,18 +306,13 @@ export default function App() {
         <div className="sidebar-logo">
           <div className="logo-mark">
             <div className="logo-icon">A</div>
-            <div>
-              <div className="logo-text">Akili</div>
-              <div className="logo-sub">AI Knowledge Companion</div>
-            </div>
+            <div><div className="logo-text">Akili</div><div className="logo-sub">AI Knowledge Companion</div></div>
           </div>
           <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><CloseIcon /></button>
         </div>
 
         <div style={{ padding: '12px 16px 4px' }}>
-          <button className="new-chat-btn" onClick={startNewChat}>
-            <EditIcon /> New Chat
-          </button>
+          <button className="new-chat-btn" onClick={startNewChat}><EditIcon /> New Chat</button>
         </div>
 
         <nav className="mode-section">
@@ -410,9 +367,7 @@ export default function App() {
               Sign in / Create account
             </button>
           )}
-          <button className="upgrade-btn" onClick={() => setShowPayment(true)}>
-            <StarIcon /> Upgrade
-          </button>
+          <button className="upgrade-btn" onClick={() => setShowPayment(true)}><StarIcon /> Upgrade</button>
           <div className="creator-credit">Created by <span>Brian Juma</span></div>
         </div>
       </aside>
@@ -430,10 +385,10 @@ export default function App() {
             {currentMessages.length > 0 && (
               <>
                 <button className="icon-btn" onClick={saveCurrentChat} title="Save chat"><SaveIcon /></button>
-                <button className="btn-ghost" onClick={clearChat}><TrashIcon /> <span className="btn-text">Clear</span></button>
+                <button className="btn-ghost" onClick={clearChat}><TrashIcon /><span className="btn-text"> Clear</span></button>
               </>
             )}
-            <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><PlusIcon /> <span className="btn-text">Upload</span></button>
+            <button className="btn-primary" onClick={() => fileInputRef.current?.click()}><PlusIcon /><span className="btn-text"> Upload</span></button>
           </div>
         </div>
 
@@ -444,8 +399,8 @@ export default function App() {
             <div className="welcome-screen">
               <div className="welcome-glow">A</div>
               <h1 className="welcome-title">Hello, <span>{displayName}</span> 👋</h1>
-              <p className="welcome-sub">Ask me anything — exams, letters, math, relationships, life advice, documents. Straight honest answers in any language.</p>
-              <div className="ai-disclaimer">⚠️ Akili is AI and can make mistakes. Verify important information.</div>
+              <p className="welcome-sub">Ask me anything — in English, Swahili, or any language. Honest, straight answers.</p>
+              <div className="ai-disclaimer">⚠️ Akili can make mistakes. Verify important information.</div>
             </div>
           ) : (
             <>
@@ -506,16 +461,14 @@ export default function App() {
                 placeholder={isListening ? '🎤 Listening...' : activeMode.placeholder}
                 value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} rows={1} />
               <div className="input-actions">
-                {voiceSupported && (
-                  <button className={`icon-btn ${isListening ? 'mic-active' : ''}`} onClick={toggleListening}><MicIcon /></button>
-                )}
+                {voiceSupported && <button className={`icon-btn ${isListening ? 'mic-active' : ''}`} onClick={toggleListening}><MicIcon /></button>}
                 <button className="icon-btn" onClick={() => fileInputRef.current?.click()}><PaperclipIcon /></button>
                 <button className="send-btn" onClick={handleSend} disabled={loading || (!input.trim() && attachedFiles.length === 0)}><SendIcon /></button>
               </div>
             </div>
             <div className="input-footer">
               <span className="input-hint">Enter to send · Shift+Enter for new line</span>
-              <span className="lang-badge"><GlobeIcon /> <span className="btn-text">All languages & slang</span></span>
+              <span className="lang-badge"><GlobeIcon /><span className="btn-text"> All languages & slang</span></span>
             </div>
           </div>
         </div>
@@ -531,57 +484,49 @@ export default function App() {
               <h2 className="modal-title">Upgrade Akili</h2>
               <p className="modal-sub">20 messages per day. Resets every midnight.</p>
             </div>
-            <div className="payment-price">
-              <span className="price-amount">$5</span>
-              <span className="price-period">/ month</span>
-            </div>
 
             <div className="payment-options">
               <div className="payment-option">
-                <div className="payment-option-title">📱 M-Pesa STK Push (Auto)</div>
+                <div className="payment-option-title">📱 M-Pesa STK Push — KSh 130 ($1)</div>
                 <div className="payment-option-body">
-                  <p>Enter your M-Pesa number and we'll send a payment prompt directly to your phone:</p>
-                  <input
-                    className="modal-input" style={{ marginTop: 10, textAlign: 'left' }}
-                    placeholder="e.g. 0712345678"
-                    value={phoneInput}
-                    onChange={e => setPhoneInput(e.target.value)}
-                  />
+                  <p>Enter your M-Pesa number — we send a prompt to your phone:</p>
+                  <input className="modal-input" style={{ marginTop: 10, textAlign: 'left' }}
+                    placeholder="e.g. 0712345678 or 0795400348"
+                    value={phoneInput} onChange={e => setPhoneInput(e.target.value)} />
                   <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: 10 }}
                     onClick={handleSTKPush} disabled={stkLoading}>
-                    {stkLoading ? 'Sending...' : '📲 Send M-Pesa Prompt (KSh 650)'}
+                    {stkLoading ? 'Sending...' : '📲 Send M-Pesa Prompt (KSh 130)'}
                   </button>
-                  {stkMessage && <p style={{ fontSize: '12.5px', color: 'var(--accent-green)', marginTop: 8, textAlign: 'center' }}>{stkMessage}</p>}
+                  {stkMessage && <p style={{ fontSize: '12.5px', color: stkMessage.includes('✅') ? 'var(--accent-green)' : 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>{stkMessage}</p>}
                 </div>
               </div>
 
               <div className="payment-option">
-                <div className="payment-option-title">📱 M-Pesa / Airtel Manual</div>
+                <div className="payment-option-title">📱 M-Pesa / Airtel Manual — KSh 130 ($1)</div>
                 <div className="payment-option-body">
-                  <p>Send <strong>KSh 650</strong> via Send Money to:</p>
+                  <p>Send <strong>KSh 130</strong> via Send Money to:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
                   <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Works for both Safaricom M-Pesa and Airtel Money</p>
                 </div>
               </div>
 
               <div className="payment-option">
-                <div className="payment-option-title">💳 PayPal</div>
+                <div className="payment-option-title">💳 PayPal — $7.25</div>
                 <div className="payment-option-body">
-                  <p>Send <strong>$5 USD</strong> via PayPal:</p>
-                  <a href={paymentInfo?.paypal_link || 'https://paypal.me/brianjuma501/5'} target="_blank" rel="noopener noreferrer"
-                    className="btn-primary" style={{ display: 'flex', justifyContent: 'center', padding: '11px', marginTop: 10, textDecoration: 'none' }}>
-                    💳 Pay with PayPal ($5)
+                  <a href={paymentInfo?.paypal_link || 'https://paypal.me/brianjuma501/7.25'} target="_blank" rel="noopener noreferrer"
+                    className="btn-primary" style={{ display: 'flex', justifyContent: 'center', padding: '11px', marginTop: 8, textDecoration: 'none' }}>
+                    💳 Pay with PayPal ($7.25)
                   </a>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Select "Friends & Family" to avoid fees</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Use "Friends & Family" to avoid fees</p>
                 </div>
               </div>
 
               <div className="payment-option">
-                <div className="payment-option-title">🌍 International (WorldRemit / Remitly)</div>
+                <div className="payment-option-title">🌍 International — $7.25</div>
                 <div className="payment-option-body">
-                  <p>Send <strong>$5 USD</strong> to M-Pesa number:</p>
+                  <p>Send via WorldRemit or Remitly to M-Pesa:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Use WorldRemit or Remitly — goes straight to M-Pesa</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Goes straight to M-Pesa, no deductions on your end</p>
                 </div>
               </div>
             </div>
