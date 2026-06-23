@@ -118,6 +118,10 @@ export default function App() {
   const [stkLoading, setStkLoading] = useState(false)
   const [stkMessage, setStkMessage] = useState('')
   const [userId] = useState(() => getUserId())
+  // ── NEW: transaction code verification state ──
+  const [transactionCode, setTransactionCode] = useState('')
+  const [verifyMessage, setVerifyMessage] = useState('')
+  const [verifyLoading, setVerifyLoading] = useState(false)
 
   const chatEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -213,6 +217,40 @@ export default function App() {
     } catch { alert('Could not confirm. Please try again.') }
   }
 
+  // ── NEW: verify payment by transaction code ──
+  const handleVerifyPayment = async () => {
+    const code = transactionCode.trim()
+    if (!code || code.length < 8) {
+      setVerifyMessage('Please enter a valid transaction code (at least 8 characters).')
+      return
+    }
+    setVerifyLoading(true)
+    setVerifyMessage('')
+    try {
+      const res = await fetch(`${BACKEND_URL}/verify-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          transaction_code: code,
+          payment_method: 'mpesa'
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        await fetchUserStatus()
+        setVerifyMessage(data.message)
+        setTimeout(() => { setShowPayment(false); setTransactionCode(''); setVerifyMessage('') }, 2000)
+      } else {
+        setVerifyMessage(data.message)
+      }
+    } catch {
+      setVerifyMessage('Could not verify. Please try again.')
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
+
   const handleSignIn = () => {
     const name = authName.trim()
     if (!name) return
@@ -286,6 +324,8 @@ export default function App() {
   const startNewChat = () => { clearChat(); setSidebarOpen(false) }
   const displayName = user ? user.name : 'Guest'
 
+  const FREE_TRIAL_LIMIT = 2
+
   const StatusBar = () => {
     if (!userStatus || userStatus.is_owner) return null
     if (!userStatus.paid && userStatus.trial_used < FREE_TRIAL_LIMIT) {
@@ -295,8 +335,6 @@ export default function App() {
     if (userStatus.paid) return <div className="status-bar paid">✨ {userStatus.daily_remaining} messages left today</div>
     return null
   }
-
-  const FREE_TRIAL_LIMIT = 2
 
   return (
     <div className="app-shell">
@@ -484,32 +522,15 @@ export default function App() {
               <h2 className="modal-title">Upgrade Akili</h2>
               <p className="modal-sub">20 messages per day. Resets every midnight.</p>
             </div>
-
             <div className="payment-options">
               <div className="payment-option">
-                <div className="payment-option-title">📱 M-Pesa STK Push — KSh 130 ($1)</div>
-                <div className="payment-option-body">
-                  <p>Enter your M-Pesa number — we send a prompt to your phone:</p>
-                  <input className="modal-input" style={{ marginTop: 10, textAlign: 'left' }}
-                    placeholder="e.g. 0712345678 or 0795400348"
-                    value={phoneInput} onChange={e => setPhoneInput(e.target.value)} />
-                  <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: 10 }}
-                    onClick={handleSTKPush} disabled={stkLoading}>
-                    {stkLoading ? 'Sending...' : '📲 Send M-Pesa Prompt (KSh 130)'}
-                  </button>
-                  {stkMessage && <p style={{ fontSize: '12.5px', color: stkMessage.includes('✅') ? 'var(--accent-green)' : 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>{stkMessage}</p>}
-                </div>
-              </div>
-
-              <div className="payment-option">
-                <div className="payment-option-title">📱 M-Pesa / Airtel Manual — KSh 130 ($1)</div>
+                <div className="payment-option-title">📱 M-Pesa — KSh 130 ($1)</div>
                 <div className="payment-option-body">
                   <p>Send <strong>KSh 130</strong> via Send Money to:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Works for both Safaricom M-Pesa and Airtel Money</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Works for Safaricom M-Pesa and Airtel Money</p>
                 </div>
               </div>
-
               <div className="payment-option">
                 <div className="payment-option-title">💳 PayPal — $7.25</div>
                 <div className="payment-option-body">
@@ -520,24 +541,41 @@ export default function App() {
                   <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Use "Friends & Family" to avoid fees</p>
                 </div>
               </div>
-
               <div className="payment-option">
                 <div className="payment-option-title">🌍 International — $7.25</div>
                 <div className="payment-option-body">
                   <p>Send via WorldRemit or Remitly to M-Pesa:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
-                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Goes straight to M-Pesa, no deductions on your end</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Goes straight to M-Pesa</p>
                 </div>
               </div>
             </div>
-
             <div className="payment-confirm-section">
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: 10, textAlign: 'center' }}>
-                After paying, tap below. Access unlocks within minutes.
+              <p style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, marginBottom: 6 }}>
+                Enter your M-Pesa transaction code to unlock:
               </p>
-              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px' }} onClick={handleManualConfirm}>
-                ✅ I Have Paid — Unlock Access
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: 10 }}>
+                After paying, check your M-Pesa SMS for a code like <strong>RGH7KJ3L2P</strong> and enter it below.
+              </p>
+              <input
+                className="modal-input"
+                placeholder="e.g. RGH7KJ3L2P"
+                value={transactionCode}
+                onChange={e => setTransactionCode(e.target.value.toUpperCase())}
+                style={{ textAlign: 'center', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 10 }}
+              />
+              {verifyMessage && (
+                <p style={{ fontSize: '12.5px', color: verifyMessage.includes('✅') ? 'var(--accent-green)' : '#ef4444', marginBottom: 10, textAlign: 'center' }}>
+                  {verifyMessage}
+                </p>
+              )}
+              <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
+                onClick={handleVerifyPayment} disabled={verifyLoading}>
+                {verifyLoading ? 'Verifying...' : '✅ Verify Payment & Unlock'}
               </button>
+              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: 10, textAlign: 'center' }}>
+                PayPal users: enter your PayPal transaction ID from your confirmation email.
+              </p>
             </div>
           </div>
         </div>

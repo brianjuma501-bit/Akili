@@ -1,7 +1,7 @@
 {
-  "name": "Akili - AI Knowledge Companion",
+  "name": "Akili — Your Intelligent AI Assistant",
   "short_name": "Akili",
-  "description": "Your personal AI knowledge assistant - Teacher, Analyst, Logic, Mentor, and Research modes in one app.",
+  "description": "Ask anything in any language. Honest, straight answers powered by AI.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0e1a",

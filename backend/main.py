@@ -36,6 +36,7 @@ DAILY_LIMIT = 20
 
 user_data = {}
 request_counts = {}
+submitted_codes = {}
 
 
 def get_user(user_id: str):
@@ -46,7 +47,7 @@ def get_user(user_id: str):
             "daily_count": 0,
             "last_reset": str(date.today()),
             "chats": {},
-            "email": None
+            "transaction_code": None
         }
     u = user_data[user_id]
     if u["last_reset"] != str(date.today()):
@@ -67,8 +68,7 @@ def get_mpesa_token():
             headers={"Authorization": f"Basic {credentials}"},
             timeout=10
         )
-        token = response.json().get("access_token")
-        return token
+        return response.json().get("access_token")
     except Exception:
         return None
 
@@ -110,8 +110,10 @@ class STKRequest(BaseModel):
     amount: int = 130
 
 
-class ManualConfirmRequest(BaseModel):
+class VerifyPaymentRequest(BaseModel):
     user_id: str
+    transaction_code: str
+    payment_method: str
 
 
 @app.get("/")
@@ -166,9 +168,9 @@ def stk_push(req: STKRequest):
     if not token:
         return {
             "success": False,
-            "message": "M-Pesa auto-prompt is being set up. Please use manual payment for now — send KSh 130 to 0795400348 via Send Money, then tap 'I Have Paid' below."
+            "sandbox_only": True,
+            "message": "STK Push is pending Safaricom production approval. Please use manual payment for now."
         }
-
     try:
         password, timestamp = generate_mpesa_password()
         phone = req.phone_number.strip().replace(" ", "")
@@ -201,22 +203,21 @@ def stk_push(req: STKRequest):
             timeout=15
         )
         result = response.json()
-
         if result.get("ResponseCode") == "0":
             return {
                 "success": True,
-                "message": "✅ M-Pesa prompt sent! Check your phone and enter your PIN to pay KSh 130.",
-                "checkout_request_id": result.get("CheckoutRequestID")
+                "message": "✅ M-Pesa prompt sent! Check your phone and enter your PIN to pay KSh 130."
             }
         else:
             return {
                 "success": False,
-                "message": f"Could not send prompt: {result.get('ResponseDescription', 'Unknown error')}. Please use manual payment — send KSh 130 to {MPESA_NUMBER} via Send Money."
+                "sandbox_only": True,
+                "message": "STK Push is in sandbox mode — real phone numbers not yet supported. Please send KSh 130 manually to 0795400348 and enter your transaction code below."
             }
-    except Exception as e:
+    except Exception:
         return {
             "success": False,
-            "message": f"M-Pesa error. Please send KSh 130 manually to {MPESA_NUMBER} via Send Money, then tap 'I Have Paid'."
+            "message": "Could not reach M-Pesa. Please use manual payment."
         }
 
 
@@ -225,8 +226,7 @@ async def mpesa_callback(request: Request):
     try:
         body = await request.json()
         result = body.get("Body", {}).get("stkCallback", {})
-        result_code = result.get("ResultCode")
-        if result_code == 0:
+        if result.get("ResultCode") == 0:
             metadata = result.get("CallbackMetadata", {}).get("Item", [])
             account_ref = next((i["Value"] for i in metadata if i["Name"] == "AccountReference"), None)
             if account_ref and account_ref.startswith("AKILI"):
@@ -241,12 +241,37 @@ async def mpesa_callback(request: Request):
     return {"ResultCode": 0, "ResultDesc": "Accepted"}
 
 
-@app.post("/manual-confirm")
-def manual_confirm(req: ManualConfirmRequest):
+@app.post("/verify-payment")
+def verify_payment(req: VerifyPaymentRequest):
+    code = req.transaction_code.strip().upper()
+
+    if not code or len(code) < 8:
+        return {
+            "success": False,
+            "message": "Please enter a valid M-Pesa transaction code (e.g. RGH7KJ3L2P)"
+        }
+
+    if code in submitted_codes:
+        return {
+            "success": False,
+            "message": "This transaction code has already been used."
+        }
+
+    submitted_codes[code] = {
+        "user_id": req.user_id,
+        "method": req.payment_method,
+        "submitted_at": str(datetime.now())
+    }
+
     u = get_user(req.user_id)
     u["paid"] = True
     u["daily_count"] = 0
-    return {"success": True, "message": "Access unlocked! You have 20 messages per day."}
+    u["transaction_code"] = code
+
+    return {
+        "success": True,
+        "message": f"✅ Payment verified! You now have {DAILY_LIMIT} messages per day. Asante!"
+    }
 
 
 @app.post("/chat")
@@ -279,7 +304,7 @@ def chat(request: ChatRequest):
             else:
                 return {
                     "error": "DAILY_LIMIT",
-                    "message": "You've reached today's 20 message limit. It resets at midnight."
+                    "message": "You've reached today's 20 message limit. Resets at midnight."
                 }
 
     try:
