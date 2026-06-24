@@ -17,63 +17,49 @@ const EditIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 
 const BACKEND_URL = 'https://akili-backend.onrender.com'
 
-// ── Swahili + simplicity + honesty built into every mode invisibly ──
 const SHARED_CONTEXT = `
-You understand and speak all languages fluently including Swahili, Sheng, and English. If the user writes in Swahili or Sheng, respond naturally in that language. If they mix languages, mix your response the same way.
+You are Akili — an intelligent AI assistant. You understand and speak all languages fluently including Swahili, Sheng, and English. Respond in whatever language the user writes in. Mix languages naturally if they do.
 
-Always explain things simply enough that someone with no background knowledge can understand. Start with the simple explanation first, then add detail only if needed.
+Explain things simply. Give the answer first, explanation after. Be direct and honest — tell people what they need to hear, not what they want to hear. Never refuse reasonable legal questions.
 
-Be direct and honest. If someone is wrong, say so kindly but clearly. Never lie to make someone feel better. Never refuse to answer something that is legal and reasonable to ask.
+You help with: exams, essays, letters, math, life advice, love and personal matters, career guidance, business questions, research, document analysis, and any topic a person genuinely needs help with.
 
-You help with: exam questions, essay writing, letter writing, math, relationships and love advice, life decisions, personal problems, business questions, and any other topic a person genuinely needs help with. Be like a knowledgeable, honest friend.
-
-Always add a brief reminder that Akili can make mistakes on important matters.`
+Always briefly note that Akili can make mistakes on critical matters.`
 
 const MODES = [
   {
     id: 'teacher', emoji: '🎓', name: 'Teacher Mode', desc: 'Explains anything clearly',
-    systemPrompt: `You are Akili in Teacher Mode.${SHARED_CONTEXT}
-
-Your job: explain, teach, and answer questions directly. Give the answer first, then the explanation. Solve math step by step. Answer exam questions fully and correctly. Write any letter, email, or document a person asks for. Never over-explain or repeat yourself.`,
+    systemPrompt: `You are Akili in Teacher Mode.${SHARED_CONTEXT} Your focus: teach, explain, and answer questions directly. Solve math step by step. Answer exam questions fully. Write any letter or document requested.`,
     placeholder: 'Ask me anything — exams, letters, math, any topic...',
     welcome: 'Ask me anything. I give straight, clear answers.'
   },
   {
     id: 'analyst', emoji: '🔍', name: 'Analyst Mode', desc: 'Breaks down any document',
-    systemPrompt: `You are Akili in Analyst Mode.${SHARED_CONTEXT}
-
-Analyze documents, contracts, reports, and data. Lead with the most important findings. Flag red flags clearly. Be objective and honest even when findings are uncomfortable.`,
-    placeholder: 'Paste a document, contract, or report to analyze...',
+    systemPrompt: `You are Akili in Analyst Mode.${SHARED_CONTEXT} Your focus: analyze documents, contracts, reports, and data. Lead with most important findings. Flag issues clearly.`,
+    placeholder: 'Paste a document, contract, or report...',
     welcome: 'Paste anything. I break it down fast and honestly.'
   },
   {
     id: 'logic', emoji: '🧠', name: 'Logic Mode', desc: 'Sharpens your thinking',
-    systemPrompt: `You are Akili in Logic Mode.${SHARED_CONTEXT}
-
-Help users think clearly. Point out logical flaws directly. If an argument is weak, explain why clearly. If someone is right, confirm it. Be a sharp, honest thinking partner.`,
-    placeholder: 'Give me an argument, debate topic, or problem to think through...',
+    systemPrompt: `You are Akili in Logic Mode.${SHARED_CONTEXT} Your focus: help users think clearly. Point out logical flaws directly. Be a sharp, honest thinking partner.`,
+    placeholder: 'Give me an argument or problem to think through...',
     welcome: 'Give me your argument. I will tell you honestly if it holds.'
   },
   {
-    id: 'mentor', emoji: '🧭', name: 'Mentor Mode', desc: 'Guides your growth & decisions',
-    systemPrompt: `You are Akili in Mentor Mode.${SHARED_CONTEXT}
-
-Give honest, direct advice on life, personal decisions, love, friendships, career, money, and success. Tell people what they need to hear, not what they want to hear. If someone is wrong in a situation, say so kindly but clearly. Give practical strategies. Be like a wise, honest friend who genuinely wants them to succeed. Never encourage harmful or illegal behavior.`,
-    placeholder: 'Ask about life decisions, personal problems, goals, success...',
-    welcome: 'Ask me anything about your life or decisions. I will be honest with you.'
+    id: 'mentor', emoji: '🧭', name: 'Mentor Mode', desc: 'Guides your growth',
+    systemPrompt: `You are Akili in Mentor Mode.${SHARED_CONTEXT} Your focus: give honest, direct advice on life, personal decisions, love, friendships, career, money, and success. Tell people what they need to hear. Be like a wise, honest friend.`,
+    placeholder: 'Ask about life, decisions, goals, personal matters...',
+    welcome: 'Ask me anything about your life. I will be completely honest.'
   },
   {
     id: 'research', emoji: '📡', name: 'Research Mode', desc: 'Deep knowledge on any topic',
-    systemPrompt: `You are Akili in Research Mode.${SHARED_CONTEXT}
-
-Provide deep, thorough information on any topic. Lead with what matters most. Be accurate and note when something needs verification. Never fabricate facts.`,
-    placeholder: 'What topic do you want to explore deeply?',
-    welcome: 'Give me a topic. I will find and explain what matters most.'
+    systemPrompt: `You are Akili in Research Mode.${SHARED_CONTEXT} Your focus: provide deep, accurate information. Lead with what matters most. Never fabricate facts.`,
+    placeholder: 'What topic do you want to explore?',
+    welcome: 'Give me a topic. I will explain what matters most.'
   }
 ]
 
 const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
 const fileIcon = (name) => {
   const ext = name.split('.').pop().toLowerCase()
   const map = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📑', pptx: '📑', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', txt: '📃' }
@@ -110,18 +96,15 @@ export default function App() {
   const [voiceSupported] = useState(!!SpeechRecognition)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
+  const [paymentType, setPaymentType] = useState('entry')
   const [showHistory, setShowHistory] = useState(false)
   const [savedChats, setSavedChats] = useState({})
   const [userStatus, setUserStatus] = useState(null)
   const [paymentInfo, setPaymentInfo] = useState(null)
-  const [phoneInput, setPhoneInput] = useState('')
-  const [stkLoading, setStkLoading] = useState(false)
-  const [stkMessage, setStkMessage] = useState('')
-  const [userId] = useState(() => getUserId())
-  // ── NEW: transaction code verification state ──
   const [transactionCode, setTransactionCode] = useState('')
   const [verifyMessage, setVerifyMessage] = useState('')
   const [verifyLoading, setVerifyLoading] = useState(false)
+  const [userId] = useState(() => getUserId())
 
   const chatEndRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -143,9 +126,9 @@ export default function App() {
     recognition.interimResults = true
     recognition.lang = 'en-US'
     recognition.onresult = (event) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript
-      setInput(transcript)
+      let t = ''
+      for (let i = 0; i < event.results.length; i++) t += event.results[i][0].transcript
+      setInput(t)
     }
     recognition.onend = () => setIsListening(false)
     recognition.onerror = () => setIsListening(false)
@@ -159,29 +142,24 @@ export default function App() {
     try { const res = await fetch(`${BACKEND_URL}/payment-info`); setPaymentInfo(await res.json()) } catch {}
   }
   const fetchSavedChats = async () => {
-    try { const res = await fetch(`${BACKEND_URL}/get-chats/${userId}`); const data = await res.json(); setSavedChats(data.chats || {}) } catch {}
+    try { const res = await fetch(`${BACKEND_URL}/get-chats/${userId}`); const d = await res.json(); setSavedChats(d.chats || {}) } catch {}
   }
 
   const saveCurrentChat = async () => {
     if (currentMessages.length === 0) return
     const chatId = activeMode.id + '_' + Date.now()
-    const title = activeMode.name + ' — ' + new Date().toLocaleDateString()
     try {
       await fetch(`${BACKEND_URL}/save-chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, chat_id: chatId, title, messages: currentMessages.map(m => ({ role: m.role, content: m.content })) })
+        body: JSON.stringify({ user_id: userId, chat_id: chatId, title: activeMode.name + ' — ' + new Date().toLocaleDateString(), messages: currentMessages.map(m => ({ role: m.role, content: m.content })) })
       })
-      fetchSavedChats()
-      alert('Chat saved!')
+      fetchSavedChats(); alert('Chat saved!')
     } catch {}
   }
 
   const deleteChat = async (chatId) => {
     try {
-      await fetch(`${BACKEND_URL}/delete-chat`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, chat_id: chatId })
-      })
+      await fetch(`${BACKEND_URL}/delete-chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, chat_id: chatId }) })
       fetchSavedChats()
     } catch {}
   }
@@ -191,64 +169,25 @@ export default function App() {
     setShowHistory(false)
   }
 
-  const handleSTKPush = async () => {
-    if (!phoneInput.trim()) { setStkMessage('Please enter your M-Pesa number.'); return }
-    setStkLoading(true); setStkMessage('')
-    try {
-      const res = await fetch(`${BACKEND_URL}/stk-push`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, phone_number: phoneInput, amount: 130 })
-      })
-      const data = await res.json()
-      setStkMessage(data.message)
-    } catch { setStkMessage('Could not send prompt. Please use manual payment below.') }
-    finally { setStkLoading(false) }
-  }
-
-  const handleManualConfirm = async () => {
-    try {
-      await fetch(`${BACKEND_URL}/manual-confirm`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId })
-      })
-      await fetchUserStatus()
-      setShowPayment(false)
-      alert('✅ Access unlocked! You now have 20 messages per day. Asante / Thank you!')
-    } catch { alert('Could not confirm. Please try again.') }
-  }
-
-  // ── NEW: verify payment by transaction code ──
   const handleVerifyPayment = async () => {
     const code = transactionCode.trim()
-    if (!code || code.length < 8) {
-      setVerifyMessage('Please enter a valid transaction code (at least 8 characters).')
-      return
-    }
-    setVerifyLoading(true)
-    setVerifyMessage('')
+    if (!code || code.length < 8) { setVerifyMessage('Please enter a valid transaction code (at least 8 characters).'); return }
+    setVerifyLoading(true); setVerifyMessage('')
     try {
       const res = await fetch(`${BACKEND_URL}/verify-payment`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          transaction_code: code,
-          payment_method: 'mpesa'
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, transaction_code: code, payment_type: paymentType })
       })
       const data = await res.json()
       if (data.success) {
         await fetchUserStatus()
         setVerifyMessage(data.message)
-        setTimeout(() => { setShowPayment(false); setTransactionCode(''); setVerifyMessage('') }, 2000)
+        setTimeout(() => { setShowPayment(false); setTransactionCode(''); setVerifyMessage('') }, 2500)
       } else {
         setVerifyMessage(data.message)
       }
-    } catch {
-      setVerifyMessage('Could not verify. Please try again.')
-    } finally {
-      setVerifyLoading(false)
-    }
+    } catch { setVerifyMessage('Could not verify. Please try again.') }
+    finally { setVerifyLoading(false) }
   }
 
   const handleSignIn = () => {
@@ -260,11 +199,7 @@ export default function App() {
     setShowAuth(false); setAuthName(''); setAuthEmail('')
   }
 
-  const handleSignOut = () => {
-    setUser(null)
-    try { localStorage.removeItem('akili_user') } catch {}
-  }
-
+  const handleSignOut = () => { setUser(null); try { localStorage.removeItem('akili_user') } catch {} }
   const toggleListening = () => {
     if (!recognitionRef.current) return
     if (isListening) { recognitionRef.current.stop(); setIsListening(false) }
@@ -275,11 +210,9 @@ export default function App() {
     if (!window.speechSynthesis) return
     if (speakingId === msg.id) { window.speechSynthesis.cancel(); setSpeakingId(null); return }
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(msg.content.replace(/[*#_`]/g, ''))
-    utterance.onend = () => setSpeakingId(null)
-    utterance.onerror = () => setSpeakingId(null)
-    window.speechSynthesis.speak(utterance)
-    setSpeakingId(msg.id)
+    const u = new SpeechSynthesisUtterance(msg.content.replace(/[*#_`]/g, ''))
+    u.onend = () => setSpeakingId(null); u.onerror = () => setSpeakingId(null)
+    window.speechSynthesis.speak(u); setSpeakingId(msg.id)
   }
 
   const buildHistory = (msgs, text) => [...msgs.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }]
@@ -287,7 +220,6 @@ export default function App() {
   const handleSend = async () => {
     const text = input.trim()
     if (!text && attachedFiles.length === 0) return
-    if (userStatus && !userStatus.can_chat && !userStatus.is_owner) { setShowPayment(true); return }
 
     const userContent = attachedFiles.length > 0 ? `${text}\n\n[Attached: ${attachedFiles.map(f => f.name).join(', ')}]` : text
     const userMsg = { id: Date.now(), role: 'user', content: userContent, time: new Date() }
@@ -302,11 +234,17 @@ export default function App() {
         body: JSON.stringify({ system: activeMode.systemPrompt, messages: buildHistory(prevMsgs, userContent), user_id: userId })
       })
       const data = await response.json()
-      if (data.error === 'TRIAL_ENDED' || data.error === 'DAILY_LIMIT') {
+
+      if (data.error === 'NEEDS_ENTRY') {
         setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: data.message, time: new Date() }] }))
-        setShowPayment(true)
+        setPaymentType('entry')
+        setTimeout(() => setShowPayment(true), 800)
+      } else if (data.error === 'NEEDS_SUBSCRIPTION') {
+        setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: data.message, time: new Date() }] }))
+        setPaymentType('subscription')
+        setTimeout(() => setShowPayment(true), 800)
       } else {
-        const aiText = data.reply || data.error || 'Something went wrong. Please try again.'
+        const aiText = data.reply || 'Something went wrong. Please try again.'
         setMessages(prev => ({ ...prev, [activeMode.id]: [...(prev[activeMode.id] || []), { id: Date.now() + 1, role: 'assistant', content: aiText, time: new Date() }] }))
         fetchUserStatus()
       }
@@ -316,7 +254,7 @@ export default function App() {
   }
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
-  const handleFiles = (files) => setAttachedFiles(prev => [...prev, ...Array.from(files).map(f => ({ name: f.name, size: f.size, file: f }))])
+  const handleFiles = (files) => setAttachedFiles(prev => [...prev, ...Array.from(files).map(f => ({ name: f.name, size: f.size }))])
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }
   const removeFile = (idx) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
   const clearChat = () => { setMessages(prev => ({ ...prev, [activeMode.id]: [] })); if (window.speechSynthesis) window.speechSynthesis.cancel(); setSpeakingId(null) }
@@ -324,17 +262,18 @@ export default function App() {
   const startNewChat = () => { clearChat(); setSidebarOpen(false) }
   const displayName = user ? user.name : 'Guest'
 
-  const FREE_TRIAL_LIMIT = 2
-
   const StatusBar = () => {
     if (!userStatus || userStatus.is_owner) return null
-    if (!userStatus.paid && userStatus.trial_used < FREE_TRIAL_LIMIT) {
-      const remaining = 2 - userStatus.trial_used
-      return <div className="status-bar trial">🎯 {remaining} free message{remaining !== 1 ? 's' : ''} remaining — <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => setShowPayment(true)}>Subscribe</span></div>
-    }
-    if (userStatus.paid) return <div className="status-bar paid">✨ {userStatus.daily_remaining} messages left today</div>
+    if (userStatus.needs_entry) return <div className="status-bar trial">👋 You have 1 free message. <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => { setPaymentType('entry'); setShowPayment(true) }}>Join Akili — KSh 130</span></div>
+    if (!userStatus.entry_paid && userStatus.trial_remaining > 0) return <div className="status-bar trial">🎯 {userStatus.trial_remaining} free message remaining</div>
+    if (userStatus.entry_paid && userStatus.daily_remaining !== undefined) return <div className="status-bar paid">✨ {userStatus.daily_remaining} messages left today</div>
     return null
   }
+
+  const paymentTitle = paymentType === 'entry' ? 'Join Akili' : 'Continue Chatting'
+  const paymentSubtitle = paymentType === 'entry'
+    ? 'One-time entry fee. Become a member and get 20 messages per day.'
+    : "You've hit today's 20 message limit. Pay to continue — resets free at midnight."
 
   return (
     <div className="app-shell">
@@ -344,7 +283,7 @@ export default function App() {
         <div className="sidebar-logo">
           <div className="logo-mark">
             <div className="logo-icon">A</div>
-            <div><div className="logo-text">Akili</div><div className="logo-sub">AI Knowledge Companion</div></div>
+            <div><div className="logo-text">Akili</div><div className="logo-sub">Your Intelligent AI Assistant</div></div>
           </div>
           <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}><CloseIcon /></button>
         </div>
@@ -358,10 +297,7 @@ export default function App() {
           {MODES.map(mode => (
             <button key={mode.id} className={`mode-btn ${activeMode.id === mode.id ? 'active' : ''}`} onClick={() => handleModeSelect(mode)}>
               <div className="mode-icon">{mode.emoji}</div>
-              <div className="mode-info">
-                <span className="mode-name">{mode.name}</span>
-                <span className="mode-desc">{mode.desc}</span>
-              </div>
+              <div className="mode-info"><span className="mode-name">{mode.name}</span><span className="mode-desc">{mode.desc}</span></div>
             </button>
           ))}
         </nav>
@@ -370,8 +306,7 @@ export default function App() {
           <div className="section-label" style={{ padding: '0 8px', marginBottom: '8px' }}>Files</div>
           <div className={`upload-zone ${dragOver ? 'drag-over' : ''}`}
             onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
+            onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}>
             <span className="upload-icon">📂</span>
             <span className="upload-text">Upload file</span>
@@ -394,7 +329,7 @@ export default function App() {
                 <div className="user-avatar">{user.initial}</div>
                 <div className="user-info">
                   <div className="user-name">{user.name}</div>
-                  <div className="user-role">{user.email || (userStatus?.paid ? '✨ Subscribed' : 'Free trial')}</div>
+                  <div className="user-role">{user.email || (userStatus?.is_member ? '✨ Member' : 'Free trial')}</div>
                 </div>
                 <div className="online-dot" />
               </div>
@@ -405,7 +340,9 @@ export default function App() {
               Sign in / Create account
             </button>
           )}
-          <button className="upgrade-btn" onClick={() => setShowPayment(true)}><StarIcon /> Upgrade</button>
+          {!userStatus?.is_owner && (
+            <button className="upgrade-btn" onClick={() => { setPaymentType('entry'); setShowPayment(true) }}><StarIcon /> Upgrade</button>
+          )}
           <div className="creator-credit">Created by <span>Brian Juma</span></div>
         </div>
       </aside>
@@ -437,7 +374,7 @@ export default function App() {
             <div className="welcome-screen">
               <div className="welcome-glow">A</div>
               <h1 className="welcome-title">Hello, <span>{displayName}</span> 👋</h1>
-              <p className="welcome-sub">Ask me anything — in English, Swahili, or any language. Honest, straight answers.</p>
+              <p className="welcome-sub">Akili — Your Intelligent AI Assistant. Ask anything in any language. One honest answer at a time.</p>
               <div className="ai-disclaimer">⚠️ Akili can make mistakes. Verify important information.</div>
             </div>
           ) : (
@@ -519,51 +456,54 @@ export default function App() {
             <button className="modal-close" onClick={() => setShowPayment(false)}><CloseIcon /></button>
             <div className="payment-header">
               <div className="welcome-glow" style={{ width: 52, height: 52, fontSize: 20, marginBottom: 12 }}>A</div>
-              <h2 className="modal-title">Upgrade Akili</h2>
-              <p className="modal-sub">20 messages per day. Resets every midnight.</p>
+              <h2 className="modal-title">{paymentTitle}</h2>
+              <p className="modal-sub">{paymentSubtitle}</p>
             </div>
+
             <div className="payment-options">
               <div className="payment-option">
-                <div className="payment-option-title">📱 M-Pesa — KSh 130 ($1)</div>
+                <div className="payment-option-title">📱 M-Pesa / Airtel — KSh 130 ($1)</div>
                 <div className="payment-option-body">
                   <p>Send <strong>KSh 130</strong> via Send Money to:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
                   <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Works for Safaricom M-Pesa and Airtel Money</p>
                 </div>
               </div>
+
               <div className="payment-option">
                 <div className="payment-option-title">💳 PayPal — $7.25</div>
                 <div className="payment-option-body">
-                  <a href={paymentInfo?.paypal_link || 'https://paypal.me/brianjuma501/7.25'} target="_blank" rel="noopener noreferrer"
-                    className="btn-primary" style={{ display: 'flex', justifyContent: 'center', padding: '11px', marginTop: 8, textDecoration: 'none' }}>
-                    💳 Pay with PayPal ($7.25)
+                  <a href={paymentType === 'entry' ? (paymentInfo?.paypal_link_entry || 'https://paypal.me/brianjuma501/1') : (paymentInfo?.paypal_link_subscription || 'https://paypal.me/brianjuma501/7.25')}
+                    target="_blank" rel="noopener noreferrer"
+                    className="btn-primary" style={{ display: 'flex', justifyContent: 'center', padding: '11px', marginTop: 6, textDecoration: 'none' }}>
+                    💳 Pay with PayPal ({paymentType === 'entry' ? '$1' : '$7.25'})
                   </a>
                   <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Use "Friends & Family" to avoid fees</p>
                 </div>
               </div>
+
               <div className="payment-option">
-                <div className="payment-option-title">🌍 International — $7.25</div>
+                <div className="payment-option-title">🌍 International (WorldRemit / Remitly) — $7.25</div>
                 <div className="payment-option-body">
-                  <p>Send via WorldRemit or Remitly to M-Pesa:</p>
+                  <p>Send to M-Pesa number:</p>
                   <div className="payment-detail-box">{paymentInfo?.mpesa_number || '0795400348'}</div>
                   <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 6 }}>Goes straight to M-Pesa</p>
                 </div>
               </div>
             </div>
+
             <div className="payment-confirm-section">
               <p style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 600, marginBottom: 6 }}>
-                Enter your M-Pesa transaction code to unlock:
+                Enter your M-Pesa transaction code:
               </p>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: 10 }}>
-                After paying, check your M-Pesa SMS for a code like <strong>RGH7KJ3L2P</strong> and enter it below.
+                After paying, check your M-Pesa SMS for a code like <strong style={{ color: 'var(--accent-gold)' }}>RGH7KJ3L2P</strong>. PayPal users enter your PayPal transaction ID.
               </p>
-              <input
-                className="modal-input"
+              <input className="modal-input"
                 placeholder="e.g. RGH7KJ3L2P"
                 value={transactionCode}
                 onChange={e => setTransactionCode(e.target.value.toUpperCase())}
-                style={{ textAlign: 'center', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 10 }}
-              />
+                style={{ textAlign: 'center', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 10 }} />
               {verifyMessage && (
                 <p style={{ fontSize: '12.5px', color: verifyMessage.includes('✅') ? 'var(--accent-green)' : '#ef4444', marginBottom: 10, textAlign: 'center' }}>
                   {verifyMessage}
@@ -571,11 +511,8 @@ export default function App() {
               )}
               <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
                 onClick={handleVerifyPayment} disabled={verifyLoading}>
-                {verifyLoading ? 'Verifying...' : '✅ Verify Payment & Unlock'}
+                {verifyLoading ? 'Verifying...' : '✅ Verify & Unlock Access'}
               </button>
-              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: 10, textAlign: 'center' }}>
-                PayPal users: enter your PayPal transaction ID from your confirmation email.
-              </p>
             </div>
           </div>
         </div>
@@ -610,7 +547,7 @@ export default function App() {
           <div className="modal-card" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowAuth(false)}><CloseIcon /></button>
             <h2 className="modal-title">Sign in to Akili</h2>
-            <p className="modal-sub">Enter your details to personalize your experience.</p>
+            <p className="modal-sub">Enter your details to get started.</p>
             <input className="modal-input" placeholder="Your name" value={authName}
               onChange={e => setAuthName(e.target.value)} style={{ marginBottom: 10 }} />
             <input className="modal-input" placeholder="Email (optional)" value={authEmail}

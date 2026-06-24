@@ -5,7 +5,6 @@ from datetime import datetime, date
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,40 +19,71 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL", "brianjuma501@gmail.com")
 MPESA_NUMBER = os.getenv("MPESA_NUMBER", "0795400348")
-OWNER_ID = os.getenv("OWNER_ID", "brianjuma501")
+OWNER_ID = os.getenv("OWNER_ID", "user_6g9hpkt5s")
 DARAJA_CONSUMER_KEY = os.getenv("DARAJA_CONSUMER_KEY", "")
 DARAJA_CONSUMER_SECRET = os.getenv("DARAJA_CONSUMER_SECRET", "")
 DARAJA_SHORTCODE = os.getenv("DARAJA_SHORTCODE", "174379")
 DARAJA_PASSKEY = os.getenv("DARAJA_PASSKEY", "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
 DARAJA_CALLBACK_URL = os.getenv("DARAJA_CALLBACK_URL", "https://akili-backend.onrender.com/mpesa-callback")
 
-FREE_TRIAL_LIMIT = 2
+FREE_TRIAL_LIMIT = 1
 DAILY_LIMIT = 20
 
 user_data = {}
 request_counts = {}
-submitted_codes = {}
+used_codes = set()
 
 
 def get_user(user_id: str):
     if user_id not in user_data:
         user_data[user_id] = {
             "trial_used": 0,
-            "paid": False,
+            "entry_paid": False,
             "daily_count": 0,
             "last_reset": str(date.today()),
             "chats": {},
-            "transaction_code": None
+            "is_member": False
         }
     u = user_data[user_id]
     if u["last_reset"] != str(date.today()):
         u["daily_count"] = 0
         u["last_reset"] = str(date.today())
     return u
+
+
+def call_gemini(system_prompt: str, messages: list) -> str:
+    if not GEMINI_API_KEY:
+        return "Gemini API key not configured. Please add it to environment variables."
+    
+    try:
+        combined = system_prompt + "\n\n"
+        for m in messages:
+            role = "User" if m["role"] == "user" else "Akili"
+            combined += f"{role}: {m['content']}\n"
+        combined += "Akili:"
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": combined}]}],
+            "generationConfig": {
+                "temperature": 0.7,
+                "maxOutputTokens": 1000
+            }
+        }
+        response = requests.post(url, json=payload, timeout=30)
+        data = response.json()
+        
+        if "candidates" in data and len(data["candidates"]) > 0:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        elif "error" in data:
+            return f"AI error: {data['error'].get('message', 'Unknown error')}"
+        else:
+            return "Could not get a response. Please try again."
+    except Exception as e:
+        return f"Connection error: {str(e)}"
 
 
 def get_mpesa_token():
@@ -113,7 +143,7 @@ class STKRequest(BaseModel):
 class VerifyPaymentRequest(BaseModel):
     user_id: str
     transaction_code: str
-    payment_method: str
+    payment_type: str
 
 
 @app.get("/")
@@ -125,11 +155,13 @@ def health_check():
 def payment_info():
     return {
         "paypal_email": PAYPAL_EMAIL,
-        "paypal_link": "https://paypal.me/brianjuma501/7.25",
+        "paypal_link_entry": "https://paypal.me/brianjuma501/1",
+        "paypal_link_subscription": "https://paypal.me/brianjuma501/7.25",
         "mpesa_number": MPESA_NUMBER,
-        "mpesa_price_kes": 130,
-        "mpesa_price_usd": 1,
-        "international_price_usd": 7.25,
+        "entry_price_kes": 130,
+        "entry_price_usd": 1,
+        "subscription_price_kes": 130,
+        "subscription_price_usd": 7.25,
         "trial_messages": FREE_TRIAL_LIMIT,
         "daily_limit": DAILY_LIMIT
     }
@@ -141,24 +173,32 @@ def user_status(user_id: str):
         return {
             "is_owner": True,
             "can_chat": True,
+            "needs_entry": False,
+            "needs_subscription": False,
             "trial_used": 0,
             "daily_count": 0,
-            "paid": True,
-            "trial_remaining": 999,
+            "entry_paid": True,
+            "is_member": True,
             "daily_remaining": 999
         }
     u = get_user(user_id)
+    
     in_trial = u["trial_used"] < FREE_TRIAL_LIMIT
-    in_daily = u["paid"] and u["daily_count"] < DAILY_LIMIT
-    can_chat = in_trial or in_daily
+    needs_entry = not in_trial and not u["entry_paid"]
+    needs_subscription = u["entry_paid"] and u["is_member"] and u["daily_count"] >= DAILY_LIMIT
+    can_chat = in_trial or (u["entry_paid"] and u["daily_count"] < DAILY_LIMIT)
+    
     return {
         "is_owner": False,
         "can_chat": can_chat,
+        "needs_entry": needs_entry,
+        "needs_subscription": needs_subscription,
         "trial_used": u["trial_used"],
         "daily_count": u["daily_count"],
-        "paid": u["paid"],
+        "entry_paid": u["entry_paid"],
+        "is_member": u["is_member"],
         "trial_remaining": max(0, FREE_TRIAL_LIMIT - u["trial_used"]),
-        "daily_remaining": max(0, DAILY_LIMIT - u["daily_count"]) if u["paid"] else 0
+        "daily_remaining": max(0, DAILY_LIMIT - u["daily_count"]) if u["entry_paid"] else 0
     }
 
 
@@ -168,8 +208,7 @@ def stk_push(req: STKRequest):
     if not token:
         return {
             "success": False,
-            "sandbox_only": True,
-            "message": "STK Push is pending Safaricom production approval. Please use manual payment for now."
+            "message": "M-Pesa auto-prompt is pending Safaricom production approval. Please send manually and enter your transaction code."
         }
     try:
         password, timestamp = generate_mpesa_password()
@@ -190,35 +229,21 @@ def stk_push(req: STKRequest):
             "PhoneNumber": phone,
             "CallBackURL": DARAJA_CALLBACK_URL,
             "AccountReference": f"AKILI{req.user_id[:6].upper()}",
-            "TransactionDesc": "Akili AI Subscription"
+            "TransactionDesc": "Akili AI"
         }
-
         response = requests.post(
             "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
             json=payload,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             timeout=15
         )
         result = response.json()
         if result.get("ResponseCode") == "0":
-            return {
-                "success": True,
-                "message": "✅ M-Pesa prompt sent! Check your phone and enter your PIN to pay KSh 130."
-            }
+            return {"success": True, "message": "✅ M-Pesa prompt sent! Enter your PIN to pay."}
         else:
-            return {
-                "success": False,
-                "sandbox_only": True,
-                "message": "STK Push is in sandbox mode — real phone numbers not yet supported. Please send KSh 130 manually to 0795400348 and enter your transaction code below."
-            }
+            return {"success": False, "message": "Could not send prompt. Please send manually and enter your transaction code below."}
     except Exception:
-        return {
-            "success": False,
-            "message": "Could not reach M-Pesa. Please use manual payment."
-        }
+        return {"success": False, "message": "M-Pesa error. Please send manually."}
 
 
 @app.post("/mpesa-callback")
@@ -233,7 +258,8 @@ async def mpesa_callback(request: Request):
                 user_prefix = account_ref.replace("AKILI", "").lower()
                 for uid in user_data:
                     if uid.startswith(user_prefix):
-                        user_data[uid]["paid"] = True
+                        user_data[uid]["entry_paid"] = True
+                        user_data[uid]["is_member"] = True
                         user_data[uid]["daily_count"] = 0
                         break
     except Exception:
@@ -246,32 +272,24 @@ def verify_payment(req: VerifyPaymentRequest):
     code = req.transaction_code.strip().upper()
 
     if not code or len(code) < 8:
-        return {
-            "success": False,
-            "message": "Please enter a valid M-Pesa transaction code (e.g. RGH7KJ3L2P)"
-        }
+        return {"success": False, "message": "Please enter a valid transaction code (at least 8 characters)."}
 
-    if code in submitted_codes:
-        return {
-            "success": False,
-            "message": "This transaction code has already been used."
-        }
+    if code in used_codes:
+        return {"success": False, "message": "This code has already been used."}
 
-    submitted_codes[code] = {
-        "user_id": req.user_id,
-        "method": req.payment_method,
-        "submitted_at": str(datetime.now())
-    }
-
+    used_codes.add(code)
     u = get_user(req.user_id)
-    u["paid"] = True
-    u["daily_count"] = 0
-    u["transaction_code"] = code
 
-    return {
-        "success": True,
-        "message": f"✅ Payment verified! You now have {DAILY_LIMIT} messages per day. Asante!"
-    }
+    if req.payment_type == "entry":
+        u["entry_paid"] = True
+        u["is_member"] = True
+        u["daily_count"] = 0
+        return {"success": True, "message": "✅ Welcome to Akili! You are now a member. Enjoy up to 20 messages per day."}
+    elif req.payment_type == "subscription":
+        u["daily_count"] = 0
+        return {"success": True, "message": "✅ Subscribed! Your message count has reset. Keep chatting!"}
+    else:
+        return {"success": False, "message": "Unknown payment type."}
 
 
 @app.post("/chat")
@@ -291,35 +309,27 @@ def chat(request: ChatRequest):
             rc["window"] = now
 
         u = get_user(request.user_id)
+
         if u["trial_used"] < FREE_TRIAL_LIMIT:
             u["trial_used"] += 1
-        elif u["paid"] and u["daily_count"] < DAILY_LIMIT:
+        elif not u["entry_paid"]:
+            return {
+                "error": "NEEDS_ENTRY",
+                "message": "You've used your free message. Pay a one-time KSh 130 ($1) entry fee to become a member and get 20 messages per day."
+            }
+        elif u["daily_count"] < DAILY_LIMIT:
             u["daily_count"] += 1
         else:
-            if not u["paid"]:
-                return {
-                    "error": "TRIAL_ENDED",
-                    "message": "Your 2 free messages are used. Subscribe to continue — only KSh 130 ($1) per month."
-                }
-            else:
-                return {
-                    "error": "DAILY_LIMIT",
-                    "message": "You've reached today's 20 message limit. Resets at midnight."
-                }
+            return {
+                "error": "NEEDS_SUBSCRIPTION",
+                "message": "You've reached today's 20 message limit. Pay KSh 130 ($1) to continue chatting today. Resets free at midnight."
+            }
 
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1000,
-            system=request.system,
-            messages=[{"role": m.role, "content": m.content} for m in request.messages],
-        )
-        reply_text = "".join(
-            block.text for block in response.content if hasattr(block, "text")
-        )
-        return {"reply": reply_text}
-    except Exception as e:
-        return {"error": str(e)}
+    reply = call_gemini(
+        request.system,
+        [{"role": m.role, "content": m.content} for m in request.messages]
+    )
+    return {"reply": reply}
 
 
 @app.post("/save-chat")
