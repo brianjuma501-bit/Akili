@@ -56,9 +56,10 @@ def get_user(user_id: str):
 
 def call_gemini(system_prompt: str, messages: list) -> str:
     if not GEMINI_API_KEY:
-        return "Gemini API key not configured. Please add it to environment variables."
-    
+        return "Gemini API key not configured. Please add GEMINI_API_KEY to Render environment variables."
+
     try:
+        # Build conversation as a single prompt string
         combined = system_prompt + "\n\n"
         for m in messages:
             role = "User" if m["role"] == "user" else "Akili"
@@ -75,7 +76,7 @@ def call_gemini(system_prompt: str, messages: list) -> str:
         }
         response = requests.post(url, json=payload, timeout=30)
         data = response.json()
-        
+
         if "candidates" in data and len(data["candidates"]) > 0:
             return data["candidates"][0]["content"]["parts"][0]["text"]
         elif "error" in data:
@@ -143,25 +144,22 @@ class STKRequest(BaseModel):
 class VerifyPaymentRequest(BaseModel):
     user_id: str
     transaction_code: str
-    payment_type: str
+    payment_method: str  # FIXED: was "payment_type", frontend sends "payment_method"
 
 
 @app.get("/")
 def health_check():
-    return {"status": "Akili backend is running"}
+    return {"status": "Akili backend is running", "gemini_key_set": bool(GEMINI_API_KEY)}
 
 
 @app.get("/payment-info")
 def payment_info():
     return {
         "paypal_email": PAYPAL_EMAIL,
-        "paypal_link_entry": "https://paypal.me/brianjuma501/1",
-        "paypal_link_subscription": "https://paypal.me/brianjuma501/7.25",
+        "paypal_link": "https://paypal.me/brianjuma501/7.25",
         "mpesa_number": MPESA_NUMBER,
-        "entry_price_kes": 130,
-        "entry_price_usd": 1,
-        "subscription_price_kes": 130,
-        "subscription_price_usd": 7.25,
+        "price_kes": 130,
+        "price_usd": 1,
         "trial_messages": FREE_TRIAL_LIMIT,
         "daily_limit": DAILY_LIMIT
     }
@@ -173,32 +171,20 @@ def user_status(user_id: str):
         return {
             "is_owner": True,
             "can_chat": True,
-            "needs_entry": False,
-            "needs_subscription": False,
+            "paid": True,
             "trial_used": 0,
-            "daily_count": 0,
-            "entry_paid": True,
-            "is_member": True,
             "daily_remaining": 999
         }
     u = get_user(user_id)
-    
     in_trial = u["trial_used"] < FREE_TRIAL_LIMIT
-    needs_entry = not in_trial and not u["entry_paid"]
-    needs_subscription = u["entry_paid"] and u["is_member"] and u["daily_count"] >= DAILY_LIMIT
     can_chat = in_trial or (u["entry_paid"] and u["daily_count"] < DAILY_LIMIT)
-    
     return {
         "is_owner": False,
         "can_chat": can_chat,
-        "needs_entry": needs_entry,
-        "needs_subscription": needs_subscription,
+        "paid": u["entry_paid"],
         "trial_used": u["trial_used"],
-        "daily_count": u["daily_count"],
-        "entry_paid": u["entry_paid"],
-        "is_member": u["is_member"],
-        "trial_remaining": max(0, FREE_TRIAL_LIMIT - u["trial_used"]),
-        "daily_remaining": max(0, DAILY_LIMIT - u["daily_count"]) if u["entry_paid"] else 0
+        "daily_remaining": max(0, DAILY_LIMIT - u["daily_count"]) if u["entry_paid"] else 0,
+        "trial_remaining": max(0, FREE_TRIAL_LIMIT - u["trial_used"])
     }
 
 
@@ -208,7 +194,7 @@ def stk_push(req: STKRequest):
     if not token:
         return {
             "success": False,
-            "message": "M-Pesa auto-prompt is pending Safaricom production approval. Please send manually and enter your transaction code."
+            "message": "M-Pesa auto-prompt unavailable. Please send manually and enter your transaction code below."
         }
     try:
         password, timestamp = generate_mpesa_password()
@@ -279,17 +265,11 @@ def verify_payment(req: VerifyPaymentRequest):
 
     used_codes.add(code)
     u = get_user(req.user_id)
+    u["entry_paid"] = True
+    u["is_member"] = True
+    u["daily_count"] = 0
 
-    if req.payment_type == "entry":
-        u["entry_paid"] = True
-        u["is_member"] = True
-        u["daily_count"] = 0
-        return {"success": True, "message": "✅ Welcome to Akili! You are now a member. Enjoy up to 20 messages per day."}
-    elif req.payment_type == "subscription":
-        u["daily_count"] = 0
-        return {"success": True, "message": "✅ Subscribed! Your message count has reset. Keep chatting!"}
-    else:
-        return {"success": False, "message": "Unknown payment type."}
+    return {"success": True, "message": "✅ Access unlocked! You now have 20 messages per day. Asante!"}
 
 
 @app.post("/chat")
@@ -314,15 +294,15 @@ def chat(request: ChatRequest):
             u["trial_used"] += 1
         elif not u["entry_paid"]:
             return {
-                "error": "NEEDS_ENTRY",
-                "message": "You've used your free message. Pay a one-time KSh 130 ($1) entry fee to become a member and get 20 messages per day."
+                "error": "TRIAL_ENDED",
+                "message": "You've used your free message. Pay KSh 130 ($1) to get 20 messages per day."
             }
         elif u["daily_count"] < DAILY_LIMIT:
             u["daily_count"] += 1
         else:
             return {
-                "error": "NEEDS_SUBSCRIPTION",
-                "message": "You've reached today's 20 message limit. Pay KSh 130 ($1) to continue chatting today. Resets free at midnight."
+                "error": "DAILY_LIMIT",
+                "message": "You've reached today's 20 message limit. It resets at midnight."
             }
 
     reply = call_gemini(
@@ -355,3 +335,9 @@ def delete_chat(req: DeleteChatRequest):
     if req.chat_id in u["chats"]:
         del u["chats"][req.chat_id]
     return {"success": True}
+
+
+@app.post("/manual-confirm")
+def manual_confirm(request: Request):
+    # Legacy endpoint kept for compatibility
+    return {"success": True, "message": "Please use /verify-payment with your transaction code instead."}
