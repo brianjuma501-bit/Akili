@@ -118,7 +118,16 @@ export default function App() {
     const ta = textareaRef.current
     if (ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px' }
   }, [input])
-  useEffect(() => { fetchUserStatus(); fetchPaymentInfo(); fetchSavedChats() }, [userId])
+  useEffect(() => {
+  fetchUserStatus()
+  fetchPaymentInfo()
+  fetchSavedChats()
+  // Keep Render backend awake by pinging every 4 minutes
+  const keepAlive = setInterval(() => {
+    fetch(`${BACKEND_URL}/ping`).catch(() => {})
+  }, 4 * 60 * 1000)
+  return () => clearInterval(keepAlive)
+}, [userId])
   useEffect(() => {
     if (!SpeechRecognition) return
     const recognition = new SpeechRecognition()
