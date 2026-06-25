@@ -20,6 +20,12 @@ app.add_middleware(
 )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# ── DEBUG: shows in Render logs on every startup ──
+print("=== AKILI BACKEND STARTING ===")
+print("GEMINI KEY EXISTS:", bool(GEMINI_API_KEY))
+print("KEY START:", GEMINI_API_KEY[:6] if GEMINI_API_KEY else "NONE - KEY IS MISSING")
+
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL", "brianjuma501@gmail.com")
 MPESA_NUMBER = os.getenv("MPESA_NUMBER", "0795400348")
 OWNER_IDS = set(os.getenv("OWNER_IDS", "user_6g9hpkt5s,user_kpw84638a").split(","))
@@ -72,19 +78,25 @@ def call_gemini(system_prompt: str, messages: list) -> str:
                 "maxOutputTokens": 1000
             }
         }
+
+        print("Calling Gemini API...")
         response = requests.post(url, json=payload, timeout=30)
         data = response.json()
+        print("Gemini status:", response.status_code)
 
         if "candidates" in data and len(data["candidates"]) > 0:
             return data["candidates"][0]["content"]["parts"][0]["text"]
         elif "error" in data:
+            print("Gemini error response:", data["error"])
             err_msg = data['error'].get('message', 'Unknown error')
             return f"AI error: {err_msg}"
         else:
+            print("Unexpected Gemini response:", data)
             return "Could not get a response. Please try again."
     except requests.exceptions.Timeout:
         return "Request timed out. Please try again."
     except Exception as e:
+        print("Gemini exception:", str(e))
         return f"Connection error: {str(e)}"
 
 
@@ -153,7 +165,8 @@ def health_check():
     return {
         "status": "Akili backend is running",
         "gemini_key_set": bool(GEMINI_API_KEY),
-        "version": "2.0"
+        "key_start": GEMINI_API_KEY[:6] if GEMINI_API_KEY else "NONE",
+        "version": "2.1"
     }
 
 
@@ -166,13 +179,10 @@ def ping():
 def payment_info():
     return {
         "paypal_email": PAYPAL_EMAIL,
-        "paypal_link_entry": "https://paypal.me/brianjuma501/1",
-        "paypal_link_subscription": "https://paypal.me/brianjuma501/7.25",
+        "paypal_link": "https://paypal.me/brianjuma501/7.25",
         "mpesa_number": MPESA_NUMBER,
         "entry_price_kes": 130,
         "entry_price_usd": 1,
-        "subscription_price_kes": 130,
-        "subscription_price_usd": 7.25,
         "trial_messages": FREE_TRIAL_LIMIT,
         "daily_limit": DAILY_LIMIT
     }
@@ -354,15 +364,15 @@ def chat(request: ChatRequest):
             u["trial_used"] += 1
         elif not u["entry_paid"]:
             return {
-                "error": "NEEDS_ENTRY",
-                "message": "You've used your free message. Pay KSh 130 ($1) to become a member and get 20 messages per day."
+                "error": "TRIAL_ENDED",
+                "message": "You've used your free message. Pay KSh 130 ($1) to get 20 messages per day."
             }
         elif u["daily_count"] < DAILY_LIMIT:
             u["daily_count"] += 1
         else:
             return {
-                "error": "NEEDS_SUBSCRIPTION",
-                "message": "You've reached today's 20 message limit. Pay KSh 130 ($1) to continue. Resets free at midnight."
+                "error": "DAILY_LIMIT",
+                "message": "You've reached today's 20 message limit. It resets at midnight."
             }
 
     reply = call_gemini(
@@ -398,3 +408,11 @@ def delete_chat(req: DeleteChatRequest):
     if req.chat_id in u["chats"]:
         del u["chats"][req.chat_id]
     return {"success": True}
+
+
+@app.post("/manual-confirm")
+async def manual_confirm(request: Request):
+    return {
+        "success": True,
+        "message": "Please use /verify-payment with your transaction code instead."
+    }
